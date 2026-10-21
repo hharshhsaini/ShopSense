@@ -1,0 +1,11 @@
+{
+  "model": "BAAI/bge-small-en-v1.5",
+  "dim": 384,
+  "normalized": true,
+  "metric": "cosine",
+  "products": 105126,
+  "documents": 98291,
+  "order": "products sorted by id",
+  "catalog_sha256": "05b6aa5e8e8c1c8c997d584f8288e432862454f8820531e13473443e83c8f073",
+  "build_seconds": 1472.3
+}

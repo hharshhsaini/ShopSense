@@ -3,3 +3,7 @@ __pycache__/
 *.py[cod]
 .env
 .DS_Store
+.models/
+*.pem
+deploy/state.env
+.claude/

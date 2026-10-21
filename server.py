@@ -1,6 +1,8 @@
 """One MCP tool, ordinary JSON HTTP responses, no frontend required."""
 import contextlib
+import logging
 import os
+import time
 from pathlib import Path
 
 import anyio
@@ -15,7 +17,12 @@ from starlette.routing import Route
 
 from search import Catalog, INPUT_SCHEMA, OUTPUT_SCHEMA
 
-server = Server('polaris-product-search', version='1.0.0')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+log = logging.getLogger('server')
+# Per-request SDK logging costs latency and adds nothing during evaluation.
+for noisy in ('mcp.server.lowlevel.server', 'mcp.server.streamable_http', 'mcp.server.streamable_http_manager'):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+server = Server('shopsense', version='1.0.0')
 catalog = None
 
 
@@ -46,7 +53,11 @@ sessions = StreamableHTTPSessionManager(server, json_response=True, stateless=Tr
 async def lifespan(app):
     global catalog
     path = os.getenv('CATALOG_PATH', str(Path(__file__).parent / 'data/products.json'))
+    started = time.time()
     catalog = await anyio.to_thread.run_sync(Catalog.load, path)
+    await anyio.to_thread.run_sync(catalog.warm)
+    log.info('Catalog ready: %d products, semantic=%s, %.1fs', len(catalog.products),
+             catalog.embedder is not None, time.time() - started)
     async with sessions.run():
         yield
 
@@ -66,4 +77,5 @@ app = Starlette(lifespan=lifespan, routes=[
 ])
 
 if __name__ == '__main__':
-    uvicorn.run(app, host=os.getenv('HOST', '0.0.0.0'), port=int(os.getenv('PORT', '8000')))
+    uvicorn.run(app, host=os.getenv('HOST', '0.0.0.0'), port=int(os.getenv('PORT', '8000')),
+                access_log=os.getenv('ACCESS_LOG', '0') == '1')

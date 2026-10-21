@@ -35,10 +35,16 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(self.ids(sort_by='id'), ['004','003','002','001'])
 
     def test_search_and_no_matches(self):
-        self.assertEqual(self.ids(query='COTTON top'), ['001','002','003'])
+        # Equally relevant tops; the small rating prior orders the best-reviewed one first.
+        self.assertEqual(self.ids(query='COTTON top'), ['003','001','002'])
         self.assertEqual(self.ids(query='spaceship engine'), [])
         self.assertEqual(self.ids(query='   '), ['001','002','003','004'])
-        self.assertEqual(self.catalog.search({'query':'skirt','include_recommendations':True})['recommendations'], [])
+        out = self.catalog.search({'query':'skirt','include_recommendations':True})
+        self.assertEqual([r['id'] for r in out['results']], ['004'])
+        for rec in out['recommendations']:
+            self.assertEqual(rec['for_product_id'], '004')
+            self.assertNotEqual(rec['id'], '004')
+        self.assertEqual(self.catalog.search({'query':'skirt'})['recommendations'], [])
 
     def test_invalid_arguments(self):
         for args in [{'limit':0},{'limit':True},{'offset':-1},{'sort_by':'unknown'},
