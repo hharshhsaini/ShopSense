@@ -108,6 +108,8 @@ class Catalog:
     @classmethod
     def load(cls, path, index_dir=None):
         raw = Path(path).read_bytes()
+        if raw.startswith(b'version https://git-lfs'):
+            raise RuntimeError(f'{path} is a Git LFS pointer, not the catalog; run: git lfs install && git lfs pull')
         index_dir = ROOT / 'index' if index_dir is None else index_dir
         return cls(json.loads(raw), index_dir=index_dir, catalog_sha256=hashlib.sha256(raw).hexdigest())
 
