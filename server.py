@@ -41,9 +41,13 @@ async def call_tool(name, arguments):
     return await anyio.to_thread.run_sync(catalog.search, arguments)
 
 
+allowed_hosts = [h.strip() for h in os.getenv('MCP_ALLOWED_HOSTS',
+    'localhost:*,127.0.0.1:*,[::1]:*').split(',') if h.strip()]
+# MCP_ALLOWED_HOSTS='*' accepts any Host header: for a public endpoint behind a platform proxy
+# (e.g. *.apps.springwinter.dev) whose final hostname is not known before deployment.
 security = TransportSecuritySettings(
-    allowed_hosts=[h.strip() for h in os.getenv('MCP_ALLOWED_HOSTS',
-        'localhost:*,127.0.0.1:*,[::1]:*').split(',') if h.strip()],
+    enable_dns_rebinding_protection='*' not in allowed_hosts,
+    allowed_hosts=allowed_hosts,
     allowed_origins=[o.strip() for o in os.getenv('MCP_ALLOWED_ORIGINS', '').split(',') if o.strip()],
 )
 sessions = StreamableHTTPSessionManager(server, json_response=True, stateless=True, security_settings=security)

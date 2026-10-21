@@ -64,7 +64,21 @@ The image bakes in the catalog, index and embedding model, so it never downloads
 | `MCP_ALLOWED_ORIGINS` | empty | Accepted browser origins |
 | `ACCESS_LOG` | `0` | Set to `1` for per-request access logs |
 
-## Deploy to AWS
+## Deploy on SpringWinter
+
+Create a **Web server** in your SpringWinter project from this repository's Dockerfile, then set:
+
+| Setting | Value |
+| --- | --- |
+| Port | `8000` (or whatever the platform puts in `PORT`; the server reads it) |
+| Health check path | `/healthz` |
+| Instance size | at least 2 GB RAM; the server uses about 0.9 GB |
+| `MCP_ALLOWED_HOSTS` | your app's hostname, e.g. `myapp.<id>.apps.springwinter.dev,myapp.<id>.apps.springwinter.dev:*`, or `*` to accept any host |
+
+Submit `https://<your app hostname>/mcp`. Builders that clone without Git LFS are handled:
+`scripts/fetch_lfs.py` downloads and verifies the catalog and index during the Docker build.
+
+## Deploy to AWS EC2 directly
 
 [deploy/ec2_deploy.sh](deploy/ec2_deploy.sh) creates one arm64 EC2 instance with Docker, an Elastic IP
 and a security group (SSH from your IP, port 8000 from the benchmark runner). It then syncs this folder,

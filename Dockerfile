@@ -7,7 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/.models')"
 RUN useradd --uid 10001 --create-home student
 COPY --chown=student:student . .
-RUN chown -R student:student /app/.models
+# Builders that clone without Git LFS leave pointer files; fetch and verify the real data.
+RUN python scripts/fetch_lfs.py && chown -R student:student /app/.models
 # The model is baked into the image, so startup never touches the network.
 ENV HF_HUB_OFFLINE=1
 USER student
