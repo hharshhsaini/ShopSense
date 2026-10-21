@@ -77,5 +77,9 @@ app = Starlette(lifespan=lifespan, routes=[
 ])
 
 if __name__ == '__main__':
+    # Keep idle connections open far longer than clients reuse them (httpx: 5 s, others up to 90 s).
+    # With uvicorn's 5 s default, a client could send on a connection the server was just closing
+    # and get "Server disconnected without sending a response" after a ~5 s pause between calls.
     uvicorn.run(app, host=os.getenv('HOST', '0.0.0.0'), port=int(os.getenv('PORT', '8000')),
-                access_log=os.getenv('ACCESS_LOG', '0') == '1')
+                access_log=os.getenv('ACCESS_LOG', '0') == '1',
+                timeout_keep_alive=int(os.getenv('KEEP_ALIVE_SECONDS', '650')))
