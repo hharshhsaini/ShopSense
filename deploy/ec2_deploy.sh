@@ -43,8 +43,13 @@ up() {
   if [ -z "${INSTANCE_ID:-}" ]; then
     AMI=$($AWS ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 \
       --query Parameter.Value)
+    # Not every zone offers every instance type: use a default subnet in one that does.
+    AZ=$($AWS ec2 describe-instance-type-offerings --location-type availability-zone \
+      --filters Name=instance-type,Values="$INSTANCE_TYPE" --query 'InstanceTypeOfferings[].Location' | tr '\t' '\n' | sort | head -1)
+    SUBNET=$($AWS ec2 describe-subnets --filters Name=default-for-az,Values=true Name=availability-zone,Values="$AZ" \
+      --query 'Subnets[0].SubnetId')
     INSTANCE_ID=$($AWS ec2 run-instances --image-id "$AMI" --instance-type "$INSTANCE_TYPE" --key-name $NAME \
-      --security-group-ids "$SG_ID" --metadata-options HttpTokens=required \
+      --subnet-id "$SUBNET" --security-group-ids "$SG_ID" --metadata-options HttpTokens=required \
       --block-device-mappings 'DeviceName=/dev/xvda,Ebs={VolumeSize=20,VolumeType=gp3}' \
       --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$NAME}]" \
       --user-data '#!/bin/bash
@@ -53,10 +58,18 @@ dnf install -y docker rsync && systemctl enable --now docker && usermod -aG dock
     save
     $AWS ec2 wait instance-running --instance-ids "$INSTANCE_ID"
   fi
-  if [ -z "${ALLOC_ID:-}" ]; then
-    ALLOC_ID=$($AWS ec2 allocate-address --domain vpc --query AllocationId)
-    $AWS ec2 associate-address --instance-id "$INSTANCE_ID" --allocation-id "$ALLOC_ID" >/dev/null
-    PUBLIC_IP=$($AWS ec2 describe-addresses --allocation-ids "$ALLOC_ID" --query 'Addresses[0].PublicIp')
+  if [ -z "${PUBLIC_IP:-}" ]; then
+    # Prefer an Elastic IP (survives stop/start); if the account's quota is used up, keep the
+    # instance's own public IP, which stays the same across reboots but changes on stop/start.
+    if ALLOC_ID=$($AWS ec2 allocate-address --domain vpc --query AllocationId 2>/dev/null); then
+      $AWS ec2 associate-address --instance-id "$INSTANCE_ID" --allocation-id "$ALLOC_ID" >/dev/null
+      PUBLIC_IP=$($AWS ec2 describe-addresses --allocation-ids "$ALLOC_ID" --query 'Addresses[0].PublicIp')
+    else
+      ALLOC_ID=
+      echo 'No Elastic IP available (quota); using the instance public IP. Do not stop the instance.'
+      PUBLIC_IP=$($AWS ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0].PublicIpAddress')
+    fi
     save
   fi
   echo "Waiting for SSH and Docker on $PUBLIC_IP ..."
